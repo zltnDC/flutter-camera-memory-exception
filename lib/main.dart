@@ -1,29 +1,25 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:disk_space/disk_space.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:system_info/system_info.dart';
+import 'package:wakelock/wakelock.dart';
+import 'package:camera/camera.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
         primarySwatch: Colors.blue,
-        // This makes the visual density adapt to the platform that you run
-        // the app on. For desktop platforms, the controls will be smaller and
-        // closer together (more dense) than on mobile platforms.
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
       home: MyHomePage(title: 'Flutter Demo Home Page'),
@@ -34,15 +30,6 @@ class MyApp extends StatelessWidget {
 class MyHomePage extends StatefulWidget {
   MyHomePage({Key key, this.title}) : super(key: key);
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
   final String title;
 
   @override
@@ -50,68 +37,150 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  int _memorySize;
+  int _diskSpace;
+  int _tenSecondsSize;
+  Directory _tempDir;
+  DateTime _startTime;
+  CameraController _controller;
+  Timer _timer;
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    Wakelock.enable();
+    _getSysInfo();
+    _initializeCameraController();
+    super.initState();
+  }
+
+  void _getSysInfo() async {
+    var totalVirtualMemory = SysInfo.getTotalVirtualMemory();
+    var diskSpaceInMB = await DiskSpace.getFreeDiskSpace;
+    var tempDir = await getTemporaryDirectory();
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _tempDir = tempDir;
+      _diskSpace = diskSpaceInMB.toInt() * 1024 * 1024;
+      _memorySize = totalVirtualMemory;
     });
+  }
+
+  Future<void> _initializeCameraController() async {
+    final cameras = await availableCameras();
+    cameras
+        .sort((a, b) => a.lensDirection == CameraLensDirection.back ? -1 : 1);
+    final camera = cameras.first;
+
+    final controller = CameraController(camera, ResolutionPreset.max);
+    await controller.initialize();
+
+    _controller = controller;
+    setState(() {});
+  }
+
+  int _toMb(int bytes) {
+    return bytes / 1024 ~/ 1024;
+  }
+
+  @override
+  void dispose() {
+    Wakelock.disable();
+    super.dispose();
+  }
+
+  Future<void> _startVideo() async {
+    await _controller.startVideoRecording();
+    setState(() {});
+    _timer?.cancel();
+    _startTime = DateTime.now();
+    _timer = Timer.periodic(Duration(seconds: 1), (t) {
+      setState(() {});
+    });
+
+    if (_tenSecondsSize == null) {
+      await Future<void>.delayed(Duration(seconds: 10));
+      final file = await _controller.stopVideoRecording();
+      _tenSecondsSize = await file.length();
+      await _controller.startVideoRecording();
+
+      _startTime = DateTime.now();
+      setState(() {});
+    }
+  }
+
+  String _videoLength() {
+    var val = _memorySize * 10 ~/ _tenSecondsSize ~/ 60;
+    return (val + 1).toString();
+  }
+
+  Future<void> _stopRecord() async {
+    try {
+      final file = await _controller.stopVideoRecording();
+      _startTime = null;
+      final fileName =
+          p.join(_tempDir.path, 'tempFile${p.extension(file.path)}');
+
+      // fix
+      final sourceFile = File(file.path);
+      await sourceFile.copy(fileName);
+      print('copy operation performed');
+
+      await File(fileName).delete();
+      // saveTO
+      await file.saveTo(fileName);
+      print('saveTo operation performed');
+
+      await File(fileName).delete();
+    } catch (e, t) {
+      print(e);
+      print(t);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
       body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
+            if (_diskSpace != null) ...[
+              Text('Disk space: ${_toMb(_diskSpace)} MB'),
+              if (_memorySize != null && _diskSpace < _memorySize)
+                Text('You do not have enough disk space'),
+            ],
+            if (_memorySize != null)
+              Text('Memory size: ${_toMb(_memorySize)} MB'),
+            if (_tenSecondsSize != null)
+              Text('10sec video has size: ${_toMb(_tenSecondsSize)} MB'),
+            if (_tenSecondsSize != null)
+              Text('Record video longer than : ${_videoLength()} min'),
+            if (_startTime != null)
+              Text('Elapsed: ${DateTime.now().difference(_startTime)}'),
+            if (_controller != null)
+              SizedBox(
+                width: 100,
+                height: 100,
+                child: CameraPreview(_controller),
+              ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      floatingActionButton: _controller != null
+          ? FloatingActionButton(
+              onPressed: () {
+                if (_controller.value.isRecordingVideo) {
+                  _stopRecord();
+                } else {
+                  _startVideo();
+                }
+              },
+              child:
+                  Text(_controller.value.isRecordingVideo ? 'Stop' : 'Start'),
+            )
+          : null,
     );
   }
 }
