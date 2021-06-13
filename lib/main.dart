@@ -114,22 +114,36 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _stopRecord() async {
     try {
-      final file = await _controller.stopVideoRecording();
+      final xfile = await _controller.stopVideoRecording();
       _startTime = null;
       final fileName =
-          p.join(_tempDir.path, 'tempFile${p.extension(file.path)}');
+          p.join(_tempDir.path, 'tempFile${p.extension(xfile.path)}');
 
+      print('start copy');
       // fix
-      final sourceFile = File(file.path);
+      final sourceFile = File(xfile.path);
       await sourceFile.copy(fileName);
       print('copy operation performed');
 
       await File(fileName).delete();
+      print('delete(copy) operation performed');
+
+      saveToOperation(xfile, fileName);
+    } catch (e, t) {
+      print(e);
+      print(t);
+    }
+  }
+
+  Future<void> saveToOperation(XFile file, String fileName) async {
+    try {
+      print('start saveTo');
       // saveTO
       await file.saveTo(fileName);
       print('saveTo operation performed');
 
       await File(fileName).delete();
+      print('delete(saveTo) operation performed');
     } catch (e, t) {
       print(e);
       print(t);
