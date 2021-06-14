@@ -37,10 +37,9 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _memorySize;
+  int _totalMemory, _freeMemory;
   int _diskSpace;
   int _tenSecondsSize;
-  Directory _tempDir;
   DateTime _startTime;
   CameraController _controller;
   Timer _timer;
@@ -53,14 +52,15 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
   }
 
-  void _getSysInfo() async {
-    var totalVirtualMemory = SysInfo.getTotalVirtualMemory();
+  Future<void> _getSysInfo() async {
+    //Free physical memory ?
+    var totalMemory = SysInfo.getTotalVirtualMemory();
+    var freeMemory = SysInfo.getFreeVirtualMemory();
     var diskSpaceInMB = await DiskSpace.getFreeDiskSpace;
-    var tempDir = await getTemporaryDirectory();
     setState(() {
-      _tempDir = tempDir;
-      _diskSpace = diskSpaceInMB.toInt() * 1024 * 1024;
-      _memorySize = totalVirtualMemory;
+      _freeMemory = freeMemory;
+      _totalMemory = totalMemory;
+      _diskSpace = (diskSpaceInMB * 1024 * 1024).toInt();
     });
   }
 
@@ -88,6 +88,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _startVideo() async {
+    await _getSysInfo();
     await _controller.startVideoRecording();
     setState(() {});
     _timer?.cancel();
@@ -107,17 +108,20 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  String _videoLength() {
-    var val = _memorySize * 10 ~/ _tenSecondsSize ~/ 60;
-    return (val + 1).toString();
+  int _aproxVideoLengthInMinutes() {
+    var aproxVideoSize = (_freeMemory + _totalMemory) / 2;
+    var oneMinuteSize = _tenSecondsSize * 6;
+    var val = aproxVideoSize ~/ oneMinuteSize;
+    return val + 1;
   }
 
   Future<void> _stopRecord() async {
     try {
+      final tempDir = await getTemporaryDirectory();
       final xfile = await _controller.stopVideoRecording();
       _startTime = null;
       final fileName =
-          p.join(_tempDir.path, 'tempFile${p.extension(xfile.path)}');
+          p.join(tempDir.path, 'tempFile${p.extension(xfile.path)}');
 
       print('start copy');
       // fix
@@ -128,7 +132,21 @@ class _MyHomePageState extends State<MyHomePage> {
       await File(fileName).delete();
       print('delete(copy) operation performed');
 
-      saveToOperation(xfile, fileName);
+      showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              content: Text('File.copy performed'),
+              actions: [
+                TextButton(
+                    onPressed: () {
+                      saveToOperation(xfile, fileName);
+                      Navigator.of(context).pop();
+                    },
+                    child: Text('Test Xfile.saveTo'))
+              ],
+            );
+          });
     } catch (e, t) {
       print(e);
       print(t);
@@ -144,6 +162,25 @@ class _MyHomePageState extends State<MyHomePage> {
 
       await File(fileName).delete();
       print('delete(saveTo) operation performed');
+
+      showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              content:
+                  Text('XFile.saveTo performed, try to record longer movie'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    File(file.path).delete().then((value) {
+                      Navigator.pop(context);
+                    });
+                  },
+                  child: Text('Delete video from temp directory'),
+                )
+              ],
+            );
+          });
     } catch (e, t) {
       print(e);
       print(t);
@@ -162,15 +199,18 @@ class _MyHomePageState extends State<MyHomePage> {
           children: <Widget>[
             if (_diskSpace != null) ...[
               Text('Disk space: ${_toMb(_diskSpace)} MB'),
-              if (_memorySize != null && _diskSpace < _memorySize)
+              if (_totalMemory != null && _diskSpace < _totalMemory)
                 Text('You do not have enough disk space'),
             ],
-            if (_memorySize != null)
-              Text('Memory size: ${_toMb(_memorySize)} MB'),
+            if (_totalMemory != null)
+              Text('Total memory size: ${_toMb(_totalMemory)} MB'),
+            if (_freeMemory != null)
+              Text('Free memory size: ${_toMb(_freeMemory)} MB'),
             if (_tenSecondsSize != null)
               Text('10sec video has size: ${_toMb(_tenSecondsSize)} MB'),
             if (_tenSecondsSize != null)
-              Text('Record video longer than : ${_videoLength()} min'),
+              Text(
+                  'Record video longer than : ${_aproxVideoLengthInMinutes()} min'),
             if (_startTime != null)
               Text('Elapsed: ${DateTime.now().difference(_startTime)}'),
             if (_controller != null)
