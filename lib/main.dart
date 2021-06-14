@@ -39,7 +39,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _totalMemory, _freeMemory;
   int _diskSpace;
-  int _tenSecondsSize;
+  int _twelveSecondsSize;
   DateTime _startTime;
   CameraController _controller;
   Timer _timer;
@@ -54,12 +54,17 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _getSysInfo() async {
     //Free physical memory ?
-    var totalMemory = SysInfo.getTotalVirtualMemory();
-    var freeMemory = SysInfo.getFreeVirtualMemory();
-    var diskSpaceInMB = await DiskSpace.getFreeDiskSpace;
-    setState(() {
+    if (Platform.isAndroid) {
+      var totalMemory = SysInfo.getTotalVirtualMemory();
+      var freeMemory = SysInfo.getFreeVirtualMemory();
+
       _freeMemory = freeMemory;
       _totalMemory = totalMemory;
+    }
+
+    var diskSpaceInMB = await DiskSpace.getFreeDiskSpace;
+
+    setState(() {
       _diskSpace = (diskSpaceInMB * 1024 * 1024).toInt();
     });
   }
@@ -97,10 +102,10 @@ class _MyHomePageState extends State<MyHomePage> {
       setState(() {});
     });
 
-    if (_tenSecondsSize == null) {
-      await Future<void>.delayed(Duration(seconds: 10));
+    if (_twelveSecondsSize == null) {
+      await Future<void>.delayed(Duration(seconds: 12));
       final file = await _controller.stopVideoRecording();
-      _tenSecondsSize = await file.length();
+      _twelveSecondsSize = await file.length();
       await _controller.startVideoRecording();
 
       _startTime = DateTime.now();
@@ -109,10 +114,13 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   int _aproxVideoLengthInMinutes() {
-    var aproxVideoSize = (_freeMemory + _totalMemory) / 2;
-    var oneMinuteSize = _tenSecondsSize * 6;
-    var val = aproxVideoSize ~/ oneMinuteSize;
-    return val + 1;
+    if (Platform.isAndroid) {
+      var aproxVideoSize = (_freeMemory + _totalMemory) / 2;
+      var oneMinuteSize = _twelveSecondsSize * 5;
+      var val = aproxVideoSize ~/ oneMinuteSize;
+      return val + 1;
+    }
+    return null;
   }
 
   Future<void> _stopRecord() async {
@@ -128,7 +136,8 @@ class _MyHomePageState extends State<MyHomePage> {
       final sourceFile = File(xfile.path);
       await sourceFile.copy(fileName);
       print('copy operation performed');
-
+      final len = await File(fileName).length();
+      print('fileName(copy) length: $len');
       await File(fileName).delete();
       print('delete(copy) operation performed');
 
@@ -153,17 +162,20 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Future<void> saveToOperation(XFile file, String fileName) async {
+  Future<void> saveToOperation(XFile xfile, String fileName) async {
     try {
       print('start saveTo');
       // saveTO
-      await file.saveTo(fileName);
+      await xfile.saveTo(fileName);
       print('saveTo operation performed');
+
+      final len = await File(fileName).length();
+      print('fileName(saveTo) length: $len');
 
       await File(fileName).delete();
       print('delete(saveTo) operation performed');
 
-      showDialog(
+      await showDialog(
           context: context,
           builder: (context) {
             return AlertDialog(
@@ -172,18 +184,19 @@ class _MyHomePageState extends State<MyHomePage> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    File(file.path).delete().then((value) {
-                      Navigator.pop(context);
-                    });
+                    Navigator.pop(context);
                   },
-                  child: Text('Delete video from temp directory'),
+                  child: Text('Ok'),
                 )
               ],
             );
           });
+
+      await File(xfile.path).delete();
     } catch (e, t) {
       print(e);
       print(t);
+      await File(xfile.path).delete();
     }
   }
 
@@ -206,9 +219,12 @@ class _MyHomePageState extends State<MyHomePage> {
               Text('Total memory size: ${_toMb(_totalMemory)} MB'),
             if (_freeMemory != null)
               Text('Free memory size: ${_toMb(_freeMemory)} MB'),
-            if (_tenSecondsSize != null)
-              Text('10sec video has size: ${_toMb(_tenSecondsSize)} MB'),
-            if (_tenSecondsSize != null)
+            if (_twelveSecondsSize != null)
+              Text('12sec video has size: ${_toMb(_twelveSecondsSize)} MB'),
+            if (_twelveSecondsSize != null)
+              Text(
+                  '1min video has size: ~ ${_toMb(_twelveSecondsSize * 5)} MB'),
+            if (_twelveSecondsSize != null)
               Text(
                   'Record video longer than : ${_aproxVideoLengthInMinutes()} min'),
             if (_startTime != null)
