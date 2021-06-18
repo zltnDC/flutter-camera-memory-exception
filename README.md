@@ -1,16 +1,13 @@
-# camera_bugs
+# How it works
 
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
-
-For help getting started with Flutter, view our
-[online documentation](https://flutter.dev/docs), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1.  The app retrieves the device information and presents it 
+    on the screen (This will help us approximate the size of the recording).
+2.  The start button:
+    -   The app records a short video (12 seconds) that helps us determine
+        the length of the long video.
+    -   The app will start recording long video automatically.
+3.  The stop button:
+    -   Stops recording.
+    -   Try to save the video with workaround (It will take a few seconds). 
+        If this operation works, the app will show a dialog with the action to exectue XFile.saveTo on the same file.
+    -   If this video is long enough, XFile.saveTo will crash the app / throw an exception.

@@ -114,7 +114,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   int _aproxVideoLengthInMinutes() {
-    if (Platform.isAndroid) {
+    if (Platform.isAndroid &&
+        _twelveSecondsSize != null &&
+        _freeMemory != null &&
+        _totalMemory != null) {
       var aproxVideoSize = (_freeMemory + _totalMemory) / 2;
       var oneMinuteSize = _twelveSecondsSize * 5;
       var val = aproxVideoSize ~/ oneMinuteSize;
@@ -202,6 +205,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final aproxVideoLength = _aproxVideoLengthInMinutes();
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
@@ -224,9 +228,8 @@ class _MyHomePageState extends State<MyHomePage> {
             if (_twelveSecondsSize != null)
               Text(
                   '1min video has size: ~ ${_toMb(_twelveSecondsSize * 5)} MB'),
-            if (_twelveSecondsSize != null)
-              Text(
-                  'Record video longer than : ${_aproxVideoLengthInMinutes()} min'),
+            if (aproxVideoLength != null)
+              Text('Record video longer than : $aproxVideoLength min'),
             if (_startTime != null)
               Text('Elapsed: ${DateTime.now().difference(_startTime)}'),
             if (_controller != null)
